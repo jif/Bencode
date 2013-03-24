@@ -23,79 +23,97 @@ Bencode::Bencode(QObject *parent) :
 {
 }
 
-bool Bencode::fromBEncodedString(const QString &bEncodedString) {
+QList<QVariant> Bencode::fromBEncodedString(const QString &bEncodedString) {
     bEncoded = bEncodedString;
     pos = 0;
-    parseObject();
-    return false;
-}
 
-void Bencode::parseObject() {
-    if(bEncoded.at(pos) == intChar) {
-        parseInteger();
-    } else if(bEncoded.at(pos) == listChar) {
-        parseList();
-    } else if(bEncoded.at(pos) == dictChar) {
-        parseDictionary();
-    } else if(bEncoded.at(pos).isNumber()) {
-        parseString();
-    } else {
-        return;
+    QList<QVariant> listBuf;
+    while(pos<bEncoded.length()) {
+        qDebug("=== Current string pos=%i char=%s ================", pos, qPrintable(currentChar()));
+        listBuf.append(parseObject());
+        qDebug() << listBuf;
     }
-    if(pos < bEncoded.size())
-        parseObject();
+    return listBuf;
 }
 
-void Bencode::parseInteger() {
-    qDebug() << "Parsing an Integer";
-
-    if(bEncoded.at(pos) != intChar) {
-        qDebug() << "No leading i for integer";
-        return;
+QVariant Bencode::parseObject() {
+    if(currentChar() == intChar) {
+        return parseInteger();
+    } else if(currentChar() == listChar) {
+        return parseList();
+    } else if(currentChar() == dictChar) {
+        return parseDictionary();
+    } else if(currentChar().isNumber()) {
+        return parseString();
     }
     pos++;
-    QString buf;
-    if(bEncoded.at(pos).isNumber() || bEncoded.at(pos) == negChar) {
-        buf.append(bEncoded.at(pos));
-        pos++;
-    }
-    while(bEncoded.at(pos).isNumber()) {
-        buf.append(bEncoded.at(pos));
-        pos++;
-    }
-    if(!bEncoded.at(pos).unicode() == 'e') {
-        qDebug() << "No training e for integer";
-        return;
+    return QVariant::QVariant();
+}
+
+int Bencode::parseInteger() {
+    // Validate the integer
+    if(currentChar() != intChar)
+        return 0;
+
+    pos++;
+    int len = bEncoded.indexOf(endChar,pos)-pos;
+    if(!len>0)
+        return 0;
+
+    pos = pos+len+1;
+    return bEncoded.mid(pos-len-1,len).toInt();
+}
+
+QString Bencode::parseString() {
+    int lenLen = bEncoded.indexOf(strDelimChar,pos)-pos;
+    if(!lenLen>0)
+        return QString::QString();
+
+    int len = bEncoded.mid(pos,lenLen).toInt();
+    pos = pos+lenLen+1;
+
+    if(!len>0)
+        return QString::QString();
+
+    pos = pos+len;
+    return bEncoded.mid(pos-len,len);
+}
+
+QList<QVariant> Bencode::parseList() {
+    if(currentChar() != listChar)
+        return QList<QVariant>::QList();
+
+    pos++;
+    QList<QVariant> listBuf;
+    while(currentChar() != endChar)
+        listBuf.append(parseObject());
+
+    pos++;
+    return listBuf;
+}
+
+QHash<QString,QVariant> Bencode::parseDictionary() {
+    QHash<QString,QVariant> hashBuf;
+    if(currentChar() != dictChar)
+        return hashBuf;
+
+    pos++;
+    while(currentChar() != endChar) {
+        QString keyBuf = parseString();
+        QVariant valBuf = parseObject();
+        if(keyBuf.isEmpty() || valBuf.isNull())
+            return hashBuf;
+
+        hashBuf.insert(keyBuf,valBuf);
+        keyBuf.clear();
+        valBuf.clear();
     }
     pos++;
-    qDebug("Integer: %i", buf.toInt());
+    return hashBuf;
 }
 
-void Bencode::parseString() {
-    qDebug() << "Parsing a string";
-    QString len;
-    while(bEncoded.at(pos).isNumber()) {
-        len.append(bEncoded.at(pos));
-        pos++;
-    }
-    if(bEncoded.at(pos) != strDelimChar) {
-        qDebug() << "missing the : for string";
-        return;
-    }
-    pos++;
-    QStringRef buf(&bEncoded,pos,len.toInt());
-    pos=pos+len.toInt();
-    qDebug("String: %s", qPrintable(buf.toLocal8Bit()));
-}
-
-void Bencode::parseList() {
-
-}
-
-void Bencode::parseDictionary() {
-
-}
-
-void Bencode::parseKeyValue() {
-
+QChar Bencode::currentChar() {
+    if(pos >= bEncoded.size())
+        return QChar::QChar();
+    return bEncoded.at(pos);
 }
