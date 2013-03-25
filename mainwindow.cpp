@@ -19,5 +19,7 @@ MainWindow::~MainWindow()
 void MainWindow::on_pushButton_clicked()
 {
     Bencode *bencode = new Bencode(this);
-    qDebug() << bencode->fromBEncodedString(ui->lineEdit->text());
+    QVariantList var = bencode->fromBEncodedString(ui->lineEdit->text());
+    qDebug() << var;
+    qDebug() << bencode->toBEncodedString(var);
 }

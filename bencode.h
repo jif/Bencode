@@ -9,6 +9,7 @@ class Bencode : public QObject
 public:
     explicit Bencode(QObject *parent = 0);
     QList<QVariant> fromBEncodedString(const QString &bEncodedString);
+    QString toBEncodedString(const QList<QVariant> &variantList);
 
 signals:
 
@@ -21,6 +22,8 @@ private:
     QList<QVariant> parseList();
     QHash<QString,QVariant> parseDictionary();
     QChar currentChar();
+
+    QString encodeObject(const QVariant &variant);
 
     int pos;
     QString bEncoded;

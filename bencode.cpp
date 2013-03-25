@@ -11,12 +11,12 @@
 
 #include "bencode.h"
 
-const QChar intChar = QChar('i');
-const QChar listChar = QChar('l');
-const QChar dictChar = QChar('d');
-const QChar strDelimChar = QChar(':');
-const QChar endChar = QChar('e');
-const QChar negChar = QChar('-');
+const static QChar intChar = QChar('i');
+const static QChar listChar = QChar('l');
+const static QChar dictChar = QChar('d');
+const static QChar strDelimChar = QChar(':');
+const static QChar endChar = QChar('e');
+const static QChar negChar = QChar('-');
 
 Bencode::Bencode(QObject *parent) :
     QObject(parent)
@@ -24,16 +24,27 @@ Bencode::Bencode(QObject *parent) :
 }
 
 QList<QVariant> Bencode::fromBEncodedString(const QString &bEncodedString) {
+    bEncoded.clear();
     bEncoded = bEncodedString;
     pos = 0;
 
     QList<QVariant> listBuf;
     while(pos<bEncoded.length()) {
-        qDebug("=== Current string pos=%i char=%s ================", pos, qPrintable(currentChar()));
         listBuf.append(parseObject());
-        qDebug() << listBuf;
     }
     return listBuf;
+}
+
+QString Bencode::toBEncodedString(const QList<QVariant> &variantList) {
+    QString strBuf;
+
+    if(variantList.empty())
+        return strBuf;
+
+    for(int i = 0; i<variantList.size(); ++i) {
+        strBuf.append(encodeObject(variantList.at(i)));
+    }
+    return strBuf;
 }
 
 QVariant Bencode::parseObject() {
@@ -116,4 +127,34 @@ QChar Bencode::currentChar() {
     if(pos >= bEncoded.size())
         return QChar::QChar();
     return bEncoded.at(pos);
+}
+
+QString Bencode::encodeObject(const QVariant &variant) {
+    switch(variant.type()) {
+    case QMetaType::Int: {
+        return QString("i%1e").arg(variant.toInt());
+    }
+    case QMetaType::QString: {
+        return QString("%1:%2").arg(variant.toString().length()).arg(variant.toString());
+    }
+    case QMetaType::QVariantList: {  // List
+        QString strBuf;
+        for(int i = 0; i<variant.toList().size(); ++i) {
+            strBuf.append(encodeObject(variant.toList().at(i)));
+        }
+        return strBuf;
+    }
+    case QMetaType::QVariantHash: {  // Dictionary
+        QString strBuf(dictChar);
+        QHashIterator<QString,QVariant> pair(variant.toHash());
+        while(pair.hasNext()) {
+            pair.next();
+            strBuf.append(QString("%1:%2").arg(pair.key().length()).arg(pair.key()));
+            strBuf.append(encodeObject(pair.value()));
+        }
+        return strBuf.append(endChar);
+    }
+    default:
+        return QString::QString();
+    }
 }
